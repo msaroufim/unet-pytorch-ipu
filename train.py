@@ -201,7 +201,7 @@ if __name__ == '__main__':
                   lr=args.lr,
                   device=device,
                   img_scale=args.scale,
-                  val_percent=args.val / 100.0)
+                  val_percent=float(args.val) / 100.0)
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         logging.info('Saved interrupt')
