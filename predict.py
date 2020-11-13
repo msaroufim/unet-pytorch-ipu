@@ -7,6 +7,7 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
+import poptorch
 
 from unet import UNet
 from utils.data_vis import plot_img_and_mask
