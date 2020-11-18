@@ -2,16 +2,13 @@ import argparse
 import logging
 import os
 import sys
-
 import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
 from tqdm import tqdm
-
 from eval import eval_net
 from unet import UNet
-
 from torch.utils.tensorboard import SummaryWriter
 from utils.dataset import CarvanaDataset
 from torch.utils.data import DataLoader, random_split
@@ -32,8 +29,36 @@ dir_checkpoint = 'checkpoints/'
 
 # opts.randomSeed(42)
 # Distributed execution opts.Distributed.configureProcessId(process_id, num_processes)
+class TrainingModelWithLoss(torch.nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self._model = model
+        self.n_channels=model.n_channels
+        self.n_classes=model.n_classes
+        self.bilinear=model.bilinear
+        if self.n_classes > 1:
+            print("Using nn.CrossEntropyLoss()")
+            self.loss = nn.CrossEntropyLoss()
+        else:
+            print("Using nn.BCEWithLogitsLoss()")
+            self.loss = nn.BCEWithLogitsLoss()
 
+    def forward(self, x, true_masks=None):
+        mask_pred = torch.rand(true_masks.size())
+        print(mask_pred)
+        print(mask_pred.type())
+        print(mask_pred.size())
+        print(mask_pred.sum())
 
+        masks_pred = self._model(x)[0]
+        print(masks_pred)
+        print(masks_pred.type())
+        print(masks_pred.size())
+        print(masks_pred.sum())
+
+        if true_masks is not None:
+            return masks_pred, self.loss(mask_pred, true_masks)
+        return masks_pred
 
 def train_net(net,
               device,
@@ -67,20 +92,16 @@ def train_net(net,
 
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min' if net.n_classes > 1 else 'max', patience=2)
-    if net.n_classes > 1:
-        criterion = nn.CrossEntropyLoss()
-    else:
-        criterion = nn.BCEWithLogitsLoss()
 
     tic = time.time()
     for epoch in range(epochs):
         net.train()
-
         epoch_loss = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
                 imgs = batch['image']
                 true_masks = batch['mask']
+
                 assert imgs.shape[1] == net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
                     f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
@@ -88,20 +109,13 @@ def train_net(net,
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 mask_type = torch.float32 # if net.n_classes == 1 else torch.long
-                true_masks = true_masks.to(device=device, dtype=mask_type)
+                true_masks = true_masks.to(device=device, dtype=mask_type)[0]
 
-                masks_pred = net(imgs)
-                loss = criterion(masks_pred, true_masks)
-                epoch_loss += loss.item()
-                writer.add_scalar('Loss/train', loss.item(), global_step)
+                masks_pred, loss = net(imgs, true_masks)
 
-                pbar.set_postfix(**{'loss (batch)': loss.item()})
-
-                optimizer.zero_grad()
-                loss.backward()
-                nn.utils.clip_grad_value_(net.parameters(), 0.1)
-                optimizer.step()
-
+                print(masks_pred)
+                print(loss)
+                print(a)
                 pbar.update(imgs.shape[0])
                 global_step += 1
                 if global_step % (n_train // (10 * batch_size)) == 0:
@@ -142,7 +156,6 @@ def train_net(net,
     logging.info(f'Throughput {throughput} im/sec')
     writer.close()
 
-
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -161,7 +174,6 @@ def get_args():
 
     return parser.parse_args()
 
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     args = get_args()
@@ -175,12 +187,13 @@ if __name__ == '__main__':
     #   - For 2 classes, use n_classes=1
     #   - For N > 2 classes, use n_classes=N
     net = UNet(n_channels=3, n_classes=1, bilinear=False) # This used to be true but unsupoorted op
-    logging.info(f'Network:\n'
-                 f'\t{net.n_channels} input channels\n'
-                 f'\t{net.n_classes} output channels (classes)\n'
-                 f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling')
 
-    # Net is now an IPU poptorch network
+    net = TrainingModelWithLoss(net)
+
+    # logging.info(f'Network:\n'
+    #             f'\t{net.n_channels} input channels\n'
+    #             f'\t{net.n_classes} output channels (classes)\n'
+    #             f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling'
     net.half()
     net = poptorch.trainingModel(net)
 
