@@ -12,6 +12,14 @@ python3 train.py -x 0.14 -y 0.24 -e 1
 
 ```
 
+Config 1
+* 512/ 1918 = 0.2669 
+* 612/1280 = 0.4781 
+
+Config 2
+* 256/ 1918 = 0.1335 
+* 306/ 1280 = 0.2391 
+
 ![input and output for a random image in the test dataset](https://framapic.org/OcE8HlU6me61/KNTt8GFQzxDR.png)
 
 
