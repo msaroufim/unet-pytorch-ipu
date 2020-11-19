@@ -9,12 +9,13 @@ from PIL import Image
 
 
 class BasicDataset(Dataset):
-    def __init__(self, imgs_dir, masks_dir, scale=1, mask_suffix=''):
+    def __init__(self, imgs_dir, masks_dir, scaleX=1, scaleY=1, mask_suffix=''):
         self.imgs_dir = imgs_dir
         self.masks_dir = masks_dir
-        self.scale = scale
+        self.scaleX = scaleX
+        self.scaleY = scaleY
         self.mask_suffix = mask_suffix
-        assert 0 < scale <= 1, 'Scale must be between 0 and 1'
+        # assert 0 < scale <= 1, 'Scale must be between 0 and 1'
 
         self.ids = [splitext(file)[0] for file in listdir(imgs_dir)
                     if not file.startswith('.')]
@@ -24,9 +25,9 @@ class BasicDataset(Dataset):
         return len(self.ids)
 
     @classmethod
-    def preprocess(cls, pil_img, scale):
+    def preprocess(cls, pil_img, scaleX, scaleY):
         w, h = pil_img.size
-        newW, newH = int(scale * w), int(scale * h)
+        newW, newH = int(scaleX * w), int(scaleY * h)
         assert newW > 0 and newH > 0, 'Scale is too small'
         pil_img = pil_img.resize((newW, newH))
 
@@ -57,8 +58,8 @@ class BasicDataset(Dataset):
         assert img.size == mask.size, \
             f'Image and mask {idx} should be the same size, but are {img.size} and {mask.size}'
 
-        img = self.preprocess(img, self.scale)
-        mask = self.preprocess(mask, self.scale)
+        img = self.preprocess(img, self.scaleX, self.scaleY)
+        mask = self.preprocess(mask, self.scaleX, self.scaleY)
 
         return {
             'image': torch.from_numpy(img).type(torch.FloatTensor),
@@ -67,5 +68,5 @@ class BasicDataset(Dataset):
 
 
 class CarvanaDataset(BasicDataset):
-    def __init__(self, imgs_dir, masks_dir, scale=1):
-        super().__init__(imgs_dir, masks_dir, scale, mask_suffix='_mask')
+    def __init__(self, imgs_dir, masks_dir, scaleX=1, scaleY=1):
+        super().__init__(imgs_dir, masks_dir, scaleX, scaleY, mask_suffix='_mask')
