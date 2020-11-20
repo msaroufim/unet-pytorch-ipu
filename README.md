@@ -20,6 +20,23 @@ Config 2
 * 256/ 1918 = 0.1335 
 * 306/ 1280 = 0.2391 
 
+## Mixed precision support
+Replace 
+
+```python
+imgs = imgs.to(device=device, dtype=torch.float32)
+mask_type = torch.float32 # if net.n_classes == 1 else torch.long
+true_masks = true_masks.to(device=device, dtype=torch.float32)[0]
+```
+
+By
+
+```python
+imgs = imgs.to(device=device, dtype=torch.half)
+mask_type = torch.half # if net.n_classes == 1 else torch.long
+true_masks = true_masks.to(device=device, dtype=torch.half)[0]
+```
+
 ![input and output for a random image in the test dataset](https://framapic.org/OcE8HlU6me61/KNTt8GFQzxDR.png)
 
 

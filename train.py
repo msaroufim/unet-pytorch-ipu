@@ -114,7 +114,7 @@ def train_net(net,
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 mask_type = torch.float32 # if net.n_classes == 1 else torch.long
-                true_masks = true_masks.to(device=device, dtype=mask_type)[0]
+                true_masks = true_masks.to(device=device, dtype=torch.float32)[0]
 
                 masks_pred, loss = net(imgs, true_masks)
 
