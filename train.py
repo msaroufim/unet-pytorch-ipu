@@ -19,10 +19,11 @@ dir_img = 'data/imgs/'
 dir_mask = 'data/masks/'
 dir_checkpoint = 'checkpoints/'
 
-# # Things to add
+# # # Things to add
 # opts = poptorch.Options()
-# # Device "step"
-# opts.deviceIterations(20)
+# # # Device "step"
+# opts.deviceIterations(2)
+# opts.setExecutionStrategy(poptorch.PipelinedExecution(poptorch.AutoStage.AutoIncrement))
 
 # # How many IPUs to replicate over.
 # opts.replicationFactor(4)
