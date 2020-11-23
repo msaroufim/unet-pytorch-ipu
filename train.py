@@ -78,6 +78,8 @@ def train_net(net,
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
     train, val = random_split(dataset, [n_train, n_val])
+
+    # Make batch size batch_size * opts.device_iterations
     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
     val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
 
@@ -109,8 +111,6 @@ def train_net(net,
                 true_masks = batch['mask']
                 print(f"imgs.shape {imgs.shape}")
                 print(f"true_masks.shape {true_masks.shape}")
-                input("hello")
-
                 assert imgs.shape[1] == net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
                     f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
@@ -118,7 +118,7 @@ def train_net(net,
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 mask_type = torch.float32 # if net.n_classes == 1 else torch.long
-                true_masks = true_masks.to(device=device, dtype=torch.float32)[0]
+                true_masks = true_masks.to(device=device, dtype=torch.float32)
 
                 masks_pred, loss = net(imgs, true_masks)
 
