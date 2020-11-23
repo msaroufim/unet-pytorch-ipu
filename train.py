@@ -77,7 +77,7 @@ class TrainingModelWithLoss(torch.nn.Module):
             x4 = self.down3(x3)
             x5 = self.down4(x4)
 
-        with poptorch.Block(ipu_id=0):
+        with poptorch.Block(ipu_id=1):
             x = self.up1(x5, x4)
             x = self.up2(x, x3)
             x = self.up3(x, x2)
