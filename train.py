@@ -20,9 +20,9 @@ dir_mask = 'data/masks/'
 dir_checkpoint = 'checkpoints/'
 
 # # # Things to add
-# opts = poptorch.Options()
+opts = poptorch.Options()
 # # # Device "step"
-# opts.deviceIterations(2)
+opts.deviceIterations(50)
 # opts.setExecutionStrategy(poptorch.PipelinedExecution(poptorch.AutoStage.AutoIncrement))
 
 # # How many IPUs to replicate over.
@@ -101,12 +101,15 @@ def train_net(net,
 
     tic = time.time()
     for epoch in range(epochs):
-        net.train()
+        # net.train()
         epoch_loss = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
                 imgs = batch['image']
                 true_masks = batch['mask']
+                print(f"imgs.shape {imgs.shape}")
+                print(f"true_masks.shape {true_masks.shape}")
+                input("hello")
 
                 assert imgs.shape[1] == net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
@@ -205,7 +208,7 @@ if __name__ == '__main__':
     #             f'\t{net.n_classes} output channels (classes)\n'
     #             f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling'
     net.half()
-    net = poptorch.trainingModel(net)
+    net = poptorch.trainingModel(net,opts)
 
     if args.load:
         net.load_state_dict(
