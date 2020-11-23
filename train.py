@@ -22,14 +22,13 @@ dir_mask = 'data/masks/'
 dir_checkpoint = 'checkpoints/'
 
 poptorch.setLogLevel(1)
-# # # Things to add
 opts = poptorch.Options()
-# # # Device "step"
-opts.deviceIterations(2)
+opts.deviceIterations(4)
+opts.replicationFactor(1)
 opts.setExecutionStrategy(poptorch.PipelinedExecution(poptorch.AutoStage.AutoIncrement))
 
 # # How many IPUs to replicate over.
-# opts.replicationFactor(4)
+
 
 # opts.randomSeed(42)
 # Distributed execution opts.Distributed.configureProcessId(process_id, num_processes)
@@ -153,17 +152,18 @@ class TrainingModelWithLoss(torch.nn.Module):
             x = self.up3(x, x2)
             x = self.up4(x, x1)
             logits = self.outc(x)
+            # mask_pred = torch.rand(true_masks.size())
 
-        mask_pred = torch.rand(true_masks.size())
-        print(mask_pred)
-        print(mask_pred.type())
-        print(mask_pred.size())
-        print(mask_pred.sum())
-        masks_pred = logits
+            mask_pred = torch.rand(batch_size, *true_masks.size())
+            print(mask_pred)
+            print(mask_pred.type())
+            print(mask_pred.size())
+            print(mask_pred.sum())
+            masks_pred = logits
 
-        if true_masks is not None:
-            return masks_pred, self.loss(mask_pred, true_masks)
-        return masks_pred
+            if true_masks is not None:
+                return masks_pred, self.loss(mask_pred, true_masks)
+            return masks_pred
 
 def train_net(net,
               device,
@@ -207,7 +207,9 @@ def train_net(net,
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
                 imgs = batch['image']
+                print(f"imgs batch shape {imgs.shape}")
                 true_masks = batch['mask']
+                print(f"True masks batch shape {true_masks.shape}")
 
                 assert imgs.shape[1] == net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
@@ -306,7 +308,7 @@ if __name__ == '__main__':
     #             f'\t{net.n_classes} output channels (classes)\n'
     #             f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling'
     net.half()
-    net = poptorch.trainingModel(net)
+    net = poptorch.trainingModel(net,opts)
 
     if args.load:
         net.load_state_dict(
