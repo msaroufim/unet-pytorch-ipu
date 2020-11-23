@@ -23,7 +23,7 @@ dir_checkpoint = 'checkpoints/'
 
 poptorch.setLogLevel(1)
 opts = poptorch.Options()
-opts.deviceIterations(6)
+opts.deviceIterations(4)
 opts.replicationFactor(1)
 n_ipus = 4
 mem_prop = {f'IPU{i}': 0.1 for i in range(n_ipus)}
@@ -154,7 +154,7 @@ class TrainingModelWithLoss(torch.nn.Module):
         with poptorch.Block(ipu_id=2):
             x = self.up1(x5, x4)
             x = self.up2(x, x3)
-        with poptorch.Block(ipu_id=3)
+        with poptorch.Block(ipu_id=3):
             x = self.up3(x, x2)
             x = self.up4(x, x1)
             logits = self.outc(x)
