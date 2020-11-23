@@ -143,18 +143,20 @@ class TrainingModelWithLoss(torch.nn.Module):
             x1 = self.inc(x)
             x2 = self.down1(x1)
             x3 = self.down2(x2)
+        
+        with poptorch.Block(ipu_id=1):
             x4 = self.down3(x3)
             x5 = self.down4(x4)
 
-        with poptorch.Block(ipu_id=1):
+        with poptorch.Block(ipu_id=2):
             x = self.up1(x5, x4)
             x = self.up2(x, x3)
             x = self.up3(x, x2)
             x = self.up4(x, x1)
             logits = self.outc(x)
-            # mask_pred = torch.rand(true_masks.size())
 
-            mask_pred = torch.rand(batch_size, *true_masks.size())
+        with poptorch.Block(ipu_id=3):
+            mask_pred = torch.rand(true_masks.size())
             print(mask_pred)
             print(mask_pred.type())
             print(mask_pred.size())
@@ -218,7 +220,7 @@ def train_net(net,
 
                 imgs = imgs.to(device=device, dtype=torch.float32)
                 mask_type = torch.float32 # if net.n_classes == 1 else torch.long
-                true_masks = true_masks.to(device=device, dtype=torch.float32)[0]
+                true_masks = true_masks.to(device=device, dtype=torch.float32)
 
                 masks_pred, loss = net(imgs, true_masks)
 

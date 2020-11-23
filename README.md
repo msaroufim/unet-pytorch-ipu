@@ -7,8 +7,8 @@
 The Carvana dataset has images of size 1918x1280 and the ```x, y``` arguments are scaling factors for the x and y coordinate respectively.
 
 ```
-python3 train.py -x 0.27 -y 0.48 -e 1 
-python3 train.py -x 0.14 -y 0.24 -e 1 
+python3 train.py -x 0.27 -y 0.48 -e 1 -b 50
+python3 train.py -x 0.14 -y 0.24 -e 1 -b 50
 
 ```
 
@@ -20,7 +20,11 @@ Config 2
 * 256/ 1918 = 0.1335 
 * 306/ 1280 = 0.2391 
 
-## Mixed precision support
+### Pipelining support 
+```python3 train.py -x 0.27 -y 0.48 -e 1 -b 2``` with device iteration set to 2
+
+
+### Mixed precision support
 Replace 
 
 ```python
