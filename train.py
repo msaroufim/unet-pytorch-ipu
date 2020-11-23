@@ -8,10 +8,12 @@ import torch.nn as nn
 from torch import optim
 from tqdm import tqdm
 from eval import eval_net
-from unet import UNet
+# from unet import UNet
 from torch.utils.tensorboard import SummaryWriter
 from utils.dataset import CarvanaDataset
 from torch.utils.data import DataLoader, random_split
+import torch.nn.functional as F
+
 import poptorch
 import time
 
@@ -19,11 +21,12 @@ dir_img = 'data/imgs/'
 dir_mask = 'data/masks/'
 dir_checkpoint = 'checkpoints/'
 
+poptorch.setLogLevel(1)
 # # # Things to add
-# opts = poptorch.Options()
+opts = poptorch.Options()
 # # # Device "step"
-# opts.deviceIterations(2)
-# opts.setExecutionStrategy(poptorch.PipelinedExecution(poptorch.AutoStage.AutoIncrement))
+opts.deviceIterations(2)
+opts.setExecutionStrategy(poptorch.PipelinedExecution(poptorch.AutoStage.AutoIncrement))
 
 # # How many IPUs to replicate over.
 # opts.replicationFactor(4)
@@ -34,12 +37,23 @@ dir_checkpoint = 'checkpoints/'
 # Use pipelined training 
 # https://docs.graphcore.ai/projects/poptorch-user-guide/en/latest/overview.html#pipeline-annotator
 class TrainingModelWithLoss(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self._model = model
-        self.n_channels=model.n_channels
-        self.n_classes=model.n_classes
-        self.bilinear=model.bilinear
+    def __init__(self, n_channels, n_classes, bilinear=False):
+        super(UNet, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+
+        self.inc = DoubleConv(n_channels, 64)
+        self.down1 = Down(64, 128)
+        self.down2 = Down(128, 256)
+        self.down3 = Down(256, 512)
+        factor = 2 if bilinear else 1
+        self.down4 = Down(512, 1024 // factor)
+        self.up1 = Up(1024, 512 // factor, bilinear)
+        self.up2 = Up(512, 256 // factor, bilinear)
+        self.up3 = Up(256, 128 // factor, bilinear)
+        self.up4 = Up(128, 64, bilinear)
+        self.outc = OutConv(64, n_classes)
         if self.n_classes > 1:
             print("Using nn.CrossEntropyLoss()")
             self.loss = nn.CrossEntropyLoss()
@@ -48,17 +62,34 @@ class TrainingModelWithLoss(torch.nn.Module):
             self.loss = nn.BCEWithLogitsLoss()
 
     def forward(self, x, true_masks=None):
-        mask_pred = torch.rand(true_masks.size())
-        print(mask_pred)
-        print(mask_pred.type())
-        print(mask_pred.size())
-        print(mask_pred.sum())
+        poptorch.Block.useAutoId()
+        #Actual forward propagation code
+        with poptorch.Block(ipu_id=0):
+            # Fix to deal with Region bug
+            mask_pred = torch.rand(true_masks.size())
+            print(mask_pred)
+            print(mask_pred.type())
+            print(mask_pred.size())
+            print(mask_pred.sum())
+            x1 = self.inc(x)
+            x2 = self.down1(x1)
+            x3 = self.down2(x2)
+            x4 = self.down3(x3)
+            x5 = self.down4(x4)
 
-        masks_pred = self._model(x)[0]
-        print(masks_pred)
-        print(masks_pred.type())
-        print(masks_pred.size())
-        print(masks_pred.sum())
+        with poptorch.Block(ipu_id=0):
+            x = self.up1(x5, x4)
+            x = self.up2(x, x3)
+            x = self.up3(x, x2)
+            x = self.up4(x, x1)
+            logits = self.outc(x)
+            print(masks_pred)
+            print(masks_pred.type())
+            print(masks_pred.size())
+            print(masks_pred.sum())
+
+            #Region bug
+        masks_pred = logits
 
         if true_masks is not None:
             return masks_pred, self.loss(mask_pred, true_masks)
@@ -196,9 +227,9 @@ if __name__ == '__main__':
     #   - For 1 class and background, use n_classes=1
     #   - For 2 classes, use n_classes=1
     #   - For N > 2 classes, use n_classes=N
-    net = UNet(n_channels=3, n_classes=1, bilinear=False) # This used to be true but unsupoorted op
+    # net = UNet(n_channels=3, n_classes=1, bilinear=False) # This used to be true but unsupoorted op
 
-    net = TrainingModelWithLoss(net)
+    net = TrainingModelWithLoss(n_channels=3, n_classes=1, bilinear=False)
 
     # logging.info(f'Network:\n'
     #             f'\t{net.n_channels} input channels\n'
@@ -232,3 +263,107 @@ if __name__ == '__main__':
             sys.exit(0)
         except SystemExit:
             os._exit(0)
+
+class DoubleConv(nn.Module):
+    """(convolution => [BN] => ReLU) * 2"""
+
+    def __init__(self, in_channels, out_channels, mid_channels=None):
+        super().__init__()
+        if not mid_channels:
+            mid_channels = out_channels
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(mid_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        return self.double_conv(x)
+
+
+class Down(nn.Module):
+    """Downscaling with maxpool then double conv"""
+
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.maxpool_conv = nn.Sequential(
+            nn.MaxPool2d(2),
+            DoubleConv(in_channels, out_channels)
+        )
+
+    def forward(self, x):
+        return self.maxpool_conv(x)
+
+
+class Up(nn.Module):
+    """Upscaling then double conv"""
+
+    def __init__(self, in_channels, out_channels, bilinear=True):
+        super().__init__()
+
+        # if bilinear, use the normal convolutions to reduce the number of channels
+        if bilinear:
+            self.up = nn.Upsample(scale_factor=2, mode='nearest', align_corners=True)
+            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+        else:
+            self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, kernel_size=2, stride=2)
+            self.conv = DoubleConv(in_channels, out_channels)
+
+
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        # input is CHW
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+
+        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        # if you have padding issues, see
+        # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
+        # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
+        x = torch.cat([x2, x1], dim=1)
+        return self.conv(x)
+
+
+class OutConv(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(OutConv, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+
+    def forward(self, x):
+        return self.conv(x)
+
+class UNet(nn.Module):
+    def __init__(self, n_channels, n_classes, bilinear=False):
+        super(UNet, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+
+        self.inc = DoubleConv(n_channels, 64)
+        self.down1 = Down(64, 128)
+        self.down2 = Down(128, 256)
+        self.down3 = Down(256, 512)
+        factor = 2 if bilinear else 1
+        self.down4 = Down(512, 1024 // factor)
+        self.up1 = Up(1024, 512 // factor, bilinear)
+        self.up2 = Up(512, 256 // factor, bilinear)
+        self.up3 = Up(256, 128 // factor, bilinear)
+        self.up4 = Up(128, 64, bilinear)
+        self.outc = OutConv(64, n_classes)
+
+    def forward(self, x):
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+        logits = self.outc(x)
+        return logits
