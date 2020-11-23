@@ -23,8 +23,11 @@ dir_checkpoint = 'checkpoints/'
 
 poptorch.setLogLevel(1)
 opts = poptorch.Options()
-opts.deviceIterations(4)
+opts.deviceIterations(6)
 opts.replicationFactor(1)
+n_ipus = 4
+mem_prop = {f'IPU{i}': 0.1 for i in range(n_ipus)}
+opts.setAvailableMemoryProportion(mem_prop)
 opts.setExecutionStrategy(poptorch.PipelinedExecution(poptorch.AutoStage.AutoIncrement))
 
 # # How many IPUs to replicate over.
@@ -143,7 +146,7 @@ class TrainingModelWithLoss(torch.nn.Module):
             x1 = self.inc(x)
             x2 = self.down1(x1)
             x3 = self.down2(x2)
-        
+
         with poptorch.Block(ipu_id=1):
             x4 = self.down3(x3)
             x5 = self.down4(x4)
@@ -151,11 +154,10 @@ class TrainingModelWithLoss(torch.nn.Module):
         with poptorch.Block(ipu_id=2):
             x = self.up1(x5, x4)
             x = self.up2(x, x3)
+        with poptorch.Block(ipu_id=3)
             x = self.up3(x, x2)
             x = self.up4(x, x1)
             logits = self.outc(x)
-
-        with poptorch.Block(ipu_id=3):
             mask_pred = torch.rand(true_masks.size())
             print(mask_pred)
             print(mask_pred.type())
