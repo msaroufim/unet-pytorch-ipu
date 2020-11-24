@@ -40,7 +40,7 @@ opts.setExecutionStrategy(poptorch.PipelinedExecution(poptorch.AutoStage.AutoInc
 # https://docs.graphcore.ai/projects/poptorch-user-guide/en/latest/overview.html#pipeline-annotator
 
 
-class DoubleConv(nn.Module):
+class DoubleConv2(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
     def __init__(self, in_channels, out_channels, mid_channels=None):
@@ -56,6 +56,20 @@ class DoubleConv(nn.Module):
             nn.ReLU(inplace=True)
         )
 
+    def forward(self, x):
+        return self.double_conv(x)
+
+class DoubleConv(nn.Module):
+    def __init__(self, in_channels, out_channels, mid_channels=None):
+        super().__init__()
+        if not mid_channels:
+            mid_channels = out_channels
+
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
     def forward(self, x):
         return self.double_conv(x)
 
@@ -146,15 +160,16 @@ class TrainingModelWithLoss(torch.nn.Module):
             x1 = self.inc(x)
             x2 = self.down1(x1)
             x3 = self.down2(x2)
+            x4 = self.down3(x3)
 
         with poptorch.Block(ipu_id=1):
-            x4 = self.down3(x3)
             x5 = self.down4(x4)
 
         with poptorch.Block(ipu_id=2):
             x = self.up1(x5, x4)
-            x = self.up2(x, x3)
+
         with poptorch.Block(ipu_id=3):
+            x = self.up2(x, x3)
             x = self.up3(x, x2)
             x = self.up4(x, x1)
             logits = self.outc(x)
