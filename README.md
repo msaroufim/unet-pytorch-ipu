@@ -21,7 +21,7 @@ Config 2
 * 306/ 1280 = 0.2391 
 
 ### Pipelining support 
-```python3 train.py -x 0.27 -y 0.48 -e 1 -b 2``` with device iteration set to 2
+```python3 train.py -x 0.27 -y 0.48 -e 1 -b 2``` with device iteration set to 2 
 
 
 ### Mixed precision support
