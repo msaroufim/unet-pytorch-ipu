@@ -104,7 +104,9 @@ def train_net(net,
     for epoch in range(epochs):
         # net.train()
         epoch_loss = 0
-        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
+        global i
+        i = 0
+        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='im') as pbar:
             for batch in train_loader:
                 imgs = batch['image']
                 true_masks = batch['mask']
@@ -123,7 +125,12 @@ def train_net(net,
                 true_masks = batch['mask'].half()
 
                 masks_pred, loss = net(imgs, true_masks)
-
+                #Skip model compilation time
+                if(i == 0):
+                    tic = time.time()
+                    input("Skip?")
+                i = i + 1
+                
                 # print(masks_pred)
                 # print(loss)
                 # print(a)
@@ -156,7 +163,7 @@ def train_net(net,
         logging.info(f'Training time {duration}')
         throughput = (n_train * epochs) / duration
         logging.info(f'Throughput {throughput} im/sec')
-        
+
         if save_cp:
             try:
                 os.mkdir(dir_checkpoint)
