@@ -22,7 +22,7 @@ dir_checkpoint = 'checkpoints/'
 # # # Things to add
 opts = poptorch.Options()
 # # # Device "step"
-opts.deviceIterations(50)
+opts.deviceIterations(1)
 # opts.setExecutionStrategy(poptorch.PipelinedExecution(poptorch.AutoStage.AutoIncrement))
 
 # # How many IPUs to replicate over.
@@ -49,16 +49,16 @@ class TrainingModelWithLoss(torch.nn.Module):
 
     def forward(self, x, true_masks=None):
         mask_pred = torch.rand(true_masks.size())
-        print(mask_pred)
-        print(mask_pred.type())
-        print(mask_pred.size())
-        print(mask_pred.sum())
+        # print(mask_pred)
+        # print(mask_pred.type())
+        # print(mask_pred.size())
+        # print(mask_pred.sum())
 
         masks_pred = self._model(x)[0]
-        print(masks_pred)
-        print(masks_pred.type())
-        print(masks_pred.size())
-        print(masks_pred.sum())
+        # print(masks_pred)
+        # print(masks_pred.type())
+        # print(masks_pred.size())
+        # print(masks_pred.sum())
 
         if true_masks is not None:
             return masks_pred, self.loss(mask_pred, true_masks)
@@ -100,7 +100,6 @@ def train_net(net,
 
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min' if net.n_classes > 1 else 'max', patience=2)
-
     tic = time.time()
     for epoch in range(epochs):
         # net.train()
@@ -109,21 +108,24 @@ def train_net(net,
             for batch in train_loader:
                 imgs = batch['image']
                 true_masks = batch['mask']
-                print(f"imgs.shape {imgs.shape}")
-                print(f"true_masks.shape {true_masks.shape}")
+                # print(f"imgs.shape {imgs.shape}")
+                # print(f"true_masks.shape {true_masks.shape}")
                 assert imgs.shape[1] == net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
                     f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
                     'the images are loaded correctly.'
 
-                imgs = imgs.to(device=device, dtype=torch.float32)
-                mask_type = torch.float32 # if net.n_classes == 1 else torch.long
-                true_masks = true_masks.to(device=device, dtype=torch.float32)
+                # imgs = imgs.to(device=device, dtype=torch.float32)
+                # mask_type = torch.float32 # if net.n_classes == 1 else torch.long
+                # true_masks = true_masks.to(device=device, dtype=torch.float32)
+                imgs = batch['image'].half()
+                mask_type = torch.float16
+                true_masks = batch['mask'].half()
 
                 masks_pred, loss = net(imgs, true_masks)
 
-                print(masks_pred)
-                print(loss)
+                # print(masks_pred)
+                # print(loss)
                 # print(a)
                 pbar.update(imgs.shape[0])
                 global_step += 1
@@ -134,7 +136,7 @@ def train_net(net,
                         # writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
                     # val_score = eval_net(net, val_loader, device)
                     # scheduler.step(val_score)
-                    writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
+                    # writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
 
                     if net.n_classes > 1:
                         print("classes more than 1")
@@ -149,7 +151,12 @@ def train_net(net,
                     # if net.n_classes == 1:
                     #     writer.add_images('masks/true', true_masks, global_step)
                     #     writer.add_images('masks/pred', torch.sigmoid(masks_pred) > 0.5, global_step)
-
+        toc = time.time()
+        duration = (toc - tic) 
+        logging.info(f'Training time {duration}')
+        throughput = (n_train * epochs) / duration
+        logging.info(f'Throughput {throughput} im/sec')
+        
         if save_cp:
             try:
                 os.mkdir(dir_checkpoint)
@@ -159,12 +166,6 @@ def train_net(net,
             torch.save(net.state_dict(),
                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
             logging.info(f'Checkpoint {epoch + 1} saved !')
-
-    toc = time.time()
-    duration = (toc - tic) 
-    logging.info(f'Training time {duration}')
-    throughput = (n_train * epochs) / duration
-    logging.info(f'Throughput {throughput} im/sec')
     writer.close()
 
 def get_args():
@@ -215,10 +216,6 @@ if __name__ == '__main__':
             torch.load(args.load, map_location=device)
         )
         logging.info(f'Model loaded from {args.load}')
-
-    # net.to(device=device)
-    # faster convolutions, but more memory
-    # cudnn.benchmark = True
 
     try:
         train_net(net=net,
