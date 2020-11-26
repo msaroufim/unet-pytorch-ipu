@@ -126,10 +126,10 @@ def train_net(net,
 
                 masks_pred, loss = net(imgs, true_masks)
                 #Skip model compilation time
-                if(i == 0):
-                    tic = time.time()
-                    input("Skip?")
-                i = i + 1
+                # if(i == 0):
+                #     tic = time.time()
+                #     input("Skip?")
+                # i = i + 1
                 
                 # print(masks_pred)
                 # print(loss)
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     #   - For 1 class and background, use n_classes=1
     #   - For 2 classes, use n_classes=1
     #   - For N > 2 classes, use n_classes=N
-    net = UNet(n_channels=3, n_classes=1, bilinear=False) # This used to be true but unsupoorted op
+    net = UNet(n_channels=3, n_classes=1, bilinear=True) # This used to be true but unsupoorted op
 
     net = TrainingModelWithLoss(net)
 
