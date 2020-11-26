@@ -100,69 +100,32 @@ def train_net(net,
 
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min' if net.n_classes > 1 else 'max', patience=2)
-    tic = time.time()
     for epoch in range(epochs):
-        # net.train()
+        first = True
+        time_t = 0
+        imgs_n = 0
+        net.train()
         epoch_loss = 0
-        global i
-        i = 0
-        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='im') as pbar:
+        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
-                imgs = batch['image']
-                true_masks = batch['mask']
-                # print(f"imgs.shape {imgs.shape}")
-                # print(f"true_masks.shape {true_masks.shape}")
+                imgs = batch[0].half()
+                true_masks = batch[1].half()
+​
                 assert imgs.shape[1] == net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
                     f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
                     'the images are loaded correctly.'
-
-                # imgs = imgs.to(device=device, dtype=torch.float32)
-                # mask_type = torch.float32 # if net.n_classes == 1 else torch.long
-                # true_masks = true_masks.to(device=device, dtype=torch.float32)
-                imgs = batch['image'].half()
-                mask_type = torch.float16
-                true_masks = batch['mask'].half()
-
-                masks_pred, loss = net(imgs, true_masks)
-                #Skip model compilation time
-                # if(i == 0):
-                #     tic = time.time()
-                #     input("Skip?")
-                # i = i + 1
-                
-                # print(masks_pred)
-                # print(loss)
-                # print(a)
-                pbar.update(imgs.shape[0])
-                global_step += 1
-                if global_step % (n_train // (10 * batch_size)) == 0:
-                    for tag, value in net.named_parameters():
-                        tag = tag.replace('.', '/')
-                        # writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
-                        # writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
-                    # val_score = eval_net(net, val_loader, device)
-                    # scheduler.step(val_score)
-                    # writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
-
-                    if net.n_classes > 1:
-                        print("classes more than 1")
-                        # logging.info('Validation cross entropy: {}'.format(val_score))
-                        # writer.add_scalar('Loss/test', val_score, global_step)
-                    else:
-                        print("1 class")
-                        # logging.info('Validation Dice Coeff: {}'.format(val_score))
-                        # writer.add_scalar('Dice/test', val_score, global_step)
-
-                    # writer.add_images('images', imgs, global_step)
-                    # if net.n_classes == 1:
-                    #     writer.add_images('masks/true', true_masks, global_step)
-                    #     writer.add_images('masks/pred', torch.sigmoid(masks_pred) > 0.5, global_step)
-        toc = time.time()
-        duration = (toc - tic) 
-        logging.info(f'Training time {duration}')
-        throughput = (n_train * epochs) / duration
-        logging.info(f'Throughput {throughput} im/sec')
+​
+                if(first):
+                    masks_pred, loss = net(imgs, true_masks)
+                    first = False
+                else:
+                    tic = time.time()
+                    masks_pred, loss = net(imgs, true_masks)
+                    time_a = (time.time() - tic)
+                    time_t += time_a
+                    imgs_n += imgs.size()[0]
+                    print("Type of run 2 Tput: " + str(imgs.size()[0]/time_a))
 
         if save_cp:
             try:
