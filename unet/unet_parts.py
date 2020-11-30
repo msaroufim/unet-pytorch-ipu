@@ -32,7 +32,7 @@ class Down(nn.Module):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels, groups=2)
+            DoubleConv(in_channels, out_channels, groups=64)
         )
 
     def forward(self, x):
@@ -50,8 +50,8 @@ class Up(nn.Module):
             self.up = nn.Upsample(scale_factor=2, mode='nearest') #mode='bilinear' align_corners=True
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
-            self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, groups=2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels, groups=2)
+            self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, groups=64, kernel_size=2, stride=2)
+            self.conv = DoubleConv(in_channels, out_channels, groups=64)
 
 
     def forward(self, x1, x2):
