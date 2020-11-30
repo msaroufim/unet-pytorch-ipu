@@ -48,10 +48,10 @@ class Up(nn.Module):
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='nearest') #mode='bilinear' align_corners=True
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+            self.conv = DoubleConv(in_channels, out_channels, mid_channels=in_channels // 2, groups=64)
         else:
-            self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, groups=64, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels, groups= in_channels // 2)
+            self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, groups= 64 , kernel_size=2, stride=2)
+            self.conv = DoubleConv(in_channels, out_channels, groups=64)
 
 
     def forward(self, x1, x2):
