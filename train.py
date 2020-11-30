@@ -108,8 +108,8 @@ def train_net(net,
         epoch_loss = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
-                imgs = batch[0].half()
-                true_masks = batch[1].half()
+                imgs = batch['image'].half()
+                true_masks = batch['mask'].half()
 ​
                 assert imgs.shape[1] == net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
