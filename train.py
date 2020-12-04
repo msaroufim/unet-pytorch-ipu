@@ -42,12 +42,13 @@ class TrainingModelWithLoss(torch.nn.Module):
         self.bilinear=model.bilinear
         if self.n_classes > 1:
             print("Using nn.CrossEntropyLoss()")
-            self.loss = nn.CrossEntropyLoss()
+            # self.loss = nn.CrossEntropyLoss()
+            # self.loss = poptorch.identity_loss()
         else:
             print("Using nn.BCEWithLogitsLoss()")
             self.loss = nn.BCEWithLogitsLoss()
 
-    def forward(self, x, true_masks=None):
+    def forward(self, x, true_masks=None):  
         # mask_pred = torch.rand(true_masks.size())
         # print(mask_pred)
         # print(mask_pred.type())
@@ -55,13 +56,15 @@ class TrainingModelWithLoss(torch.nn.Module):
         # print(mask_pred.sum())
 
         mask_pred = self._model(x)[0]
-        # print(masks_pred)
-        # print(masks_pred.type())
-        # print(masks_pred.size())
-        # print(masks_pred.sum())
+        # print(mask_pred)
+        # print(mask_pred.type())
+        # print(mask_pred.size())
+        # print(mask_pred.sum())
 
         if true_masks is not None:
-            self.loss(true_masks.squeeze(0), mask_pred)
+            # x = torch.sum(mask_pred)
+            poptorch.identity_loss(mask_pred, reduction='sum')
+            # self.loss(true_masks.squeeze(0), mask_pred)
         return mask_pred
 
 def train_net(net,
@@ -109,7 +112,7 @@ def train_net(net,
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
                 imgs = batch['image'].half()
-                true_masks = batch['mask'].half()
+                true_masks = batch['mask']
                 assert imgs.shape[1] == net.n_channels, \
                     f'Network has been defined with {net.n_channels} input channels, ' \
                     f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
@@ -169,7 +172,7 @@ if __name__ == '__main__':
     #   - For 1 class and background, use n_classes=1
     #   - For 2 classes, use n_classes=1
     #   - For N > 2 classes, use n_classes=N
-    net = UNet(n_channels=3, n_classes=1, bilinear=False) # This used to be true but unsupoorted op
+    net = UNet(n_channels=3, n_classes=2, bilinear=False) # This used to be true but unsupoorted op
 
     net = TrainingModelWithLoss(net)
 
