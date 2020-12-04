@@ -48,21 +48,21 @@ class TrainingModelWithLoss(torch.nn.Module):
             self.loss = nn.BCEWithLogitsLoss()
 
     def forward(self, x, true_masks=None):
-        mask_pred = torch.rand(true_masks.size())
+        # mask_pred = torch.rand(true_masks.size())
         # print(mask_pred)
         # print(mask_pred.type())
         # print(mask_pred.size())
         # print(mask_pred.sum())
 
-        masks_pred = self._model(x)[0]
+        mask_pred = self._model(x)[0]
         # print(masks_pred)
         # print(masks_pred.type())
         # print(masks_pred.size())
         # print(masks_pred.sum())
 
         if true_masks is not None:
-            return masks_pred, self.loss(mask_pred, true_masks)
-        return masks_pred
+            self.loss(true_masks.squeeze(0), mask_pred)
+        return mask_pred
 
 def train_net(net,
               device,
